@@ -21,6 +21,8 @@ export async function getIncidents(req: Request, res: Response, next: NextFuncti
 
     const totalPages = Math.ceil(total / limit) || 1;
 
+    
+
     return res.status(200).json({
       data,
       page,
