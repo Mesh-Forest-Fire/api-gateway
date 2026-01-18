@@ -43,9 +43,10 @@ To keep responsibilities clear and avoid hidden coupling, the API Gateway **expl
 - **Ingest or process raw sensor data**
   - No direct communication with Raspberry Pi nodes or edge devices
   - No low-level telemetry or hardware protocols
-- **Perform authentication, authorization, or identity management**
+- **Perform full authentication, authorization, or identity management**
   - No user accounts, roles, or permissions
   - Assumes authn/authz is handled upstream (e.g. API management, identity provider, or service mesh)
+  - Optional **basic auth** can be enabled for protected routes in non-production setups
 - **Execute heavy domain logic or ML inference**
   - No fire or storm simulation
   - No risk-scoring algorithms or prediction models
@@ -115,6 +116,68 @@ All endpoints are mounted under:
 
 ```
 http://<host>:<port>/api
+```
+
+## Login (No Session)
+
+This endpoint validates credentials on every request; no session or token is created.
+
+```
+POST /api/login
+```
+
+Request body:
+
+```json
+{
+  "username": "admin",
+  "password": "changeme"
+}
+```
+
+Response:
+
+```json
+{
+  "approved": true
+}
+```
+
+## Optional Basic Auth (Protected Routes)
+
+For simple, hardcoded protection (e.g., during demos or internal environments), you can enable Basic auth for selected routes (currently `/api/incidents` and `/api/incidents/stream`).
+
+### Environment variables
+
+- `AUTH_ENABLED` — set to `true` to enable auth (default: `false`)
+- `AUTH_USERNAME` — required when auth is enabled
+- `AUTH_PASSWORD` — required when auth is enabled
+
+### Example
+
+```
+AUTH_ENABLED=true
+AUTH_USERNAME=admin
+AUTH_PASSWORD=changeme
+```
+
+### Request body example
+
+Send credentials in the JSON body (recommended for demo login endpoints):
+
+```json
+{
+  "username": "admin",
+  "password": "changeme"
+}
+```
+
+### Request header example (fallback)
+
+You can also send a Basic auth header:
+
+```
+Authorization: Basic <base64(username:password)>
 ```
 
 ## Read (Client / Dashboard)
@@ -208,3 +271,17 @@ Notes:
 #### Response
 
 `201 Created` with the full incident document as JSON.
+
+---
+
+# Tests
+
+Run the test suite:
+
+```
+npm test
+```
+
+The suite includes:
+- Unit tests for the Basic auth middleware
+- Integration checks that protected routes reject unauthenticated access

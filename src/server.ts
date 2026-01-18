@@ -1,9 +1,12 @@
 import http from "http";
+import dotenv from "dotenv";
 import app from "./app";
 import { connectMongoose, mongoose } from "./db/mongooseClient";
 import { closeIncidentsStream } from "./streams/incidents.stream";
 
-const port = process.env.PORT || 3000;
+dotenv.config();
+
+const port = process.env.PORT || 3001;
 let server: http.Server | null = null;
 
 async function start() {

@@ -4,6 +4,7 @@ import { incidentsStreamHandler } from "../streams/incidents.stream";
 
 const router = Router();
 
+
 // GET /incidents - paginated list
 router.get("/", getIncidents);
 
