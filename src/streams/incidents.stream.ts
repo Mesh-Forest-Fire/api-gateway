@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import type { ChangeStream, ChangeStreamDocument } from "mongodb";
 import { mongoose } from "../db/mongooseClient";
 
 type ClientState = {
@@ -17,7 +16,7 @@ type IncidentInsertPayload = {
 };
 
 const clients = new Set<ClientState>();
-let stream: ChangeStream | null = null;
+let stream: ReturnType<typeof mongoose.connection.watch> | null = null;
 
 function writeSse(res: Response, event: string, data: unknown) {
   const payload = `event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`;
@@ -45,7 +44,7 @@ function startChangeStream() {
     return;
   }
 
-  stream.on("change", (change: ChangeStreamDocument) => {
+  stream.on("change", (change: any) => {
     if (change.operationType !== "insert") {
       return;
     }
