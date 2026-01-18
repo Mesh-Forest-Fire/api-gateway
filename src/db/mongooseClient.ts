@@ -1,21 +1,22 @@
 import mongoose, { Connection } from "mongoose";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 let cachedConnection: Connection | null = null;
 
-export interface MongooseConfig {
-  uri: string;
-}
+const MONGODB_URL = process.env.MONGODB_URI;
 
-export async function connectMongoose(config: MongooseConfig): Promise<Connection> {
+export async function connectMongoose(): Promise<Connection> {
   if (cachedConnection) {
     return cachedConnection;
   }
 
-  if (!config.uri) {
-    throw new Error("MONGODB connection URI is required");
+  if (!MONGODB_URL) {
+    throw new Error("MONGODB_URL is not set in the environment (.env)");
   }
 
-  await mongoose.connect(config.uri);
+  await mongoose.connect(MONGODB_URL);
   cachedConnection = mongoose.connection;
 
   return cachedConnection;
@@ -28,3 +29,5 @@ export function getMongooseConnection(): Connection {
 
   return cachedConnection;
 }
+
+export { mongoose };
