@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This project is a **client-facing, read-only API Gateway** for a natural-disaster coping system. It sits in front of multiple internal backend services and exposes a **stable, frontend-friendly HTTP API** for dashboards and external integrators.
+This project is a **client-facing API Gateway** for a natural-disaster coping system. It sits in front of multiple internal backend services and exposes a **stable, frontend-friendly HTTP API** for dashboards and external integrators. It also accepts **base-node incident submissions**.
 
 The gateway focuses on **aggregating and presenting system state**, not performing domain computations itself. It is intentionally **stateless** and is designed to run behind a service mesh or load balancer.
 
@@ -17,6 +17,8 @@ The gateway focuses on **aggregating and presenting system state**, not performi
   - Combined / overall risk views
   - Alert summaries
   - System health / service status
+- **Accepts incident creation from base nodes**
+  - Base nodes post validated incident payloads to the API
 - **Normalizes and stabilizes data contracts**
   - Hides internal service details and schemas
   - Presents consistent, versioned response shapes
@@ -49,7 +51,7 @@ To keep responsibilities clear and avoid hidden coupling, the API Gateway **expl
   - No risk-scoring algorithms or prediction models
   - No training or serving of machine-learning models
 - **Own any domain source of truth**
-  - Does not write to operational databases
+  - Does not write to operational databases outside incident submission
   - Does not maintain long-lived state beyond in-memory caches
 - **Act as an admin backdoor to internal services**
   - No passthrough debug endpoints
@@ -99,4 +101,110 @@ This repository currently contains:
   - `db/` – infrastructure clients (e.g., `mongooseClient.ts`)
   - `types.ts` – core API Gateway TypeScript contracts
 
-As the system evolves, richer aggregation logic and additional endpoints should **continue to respect these boundaries**: client-facing, read-only, stateless, and decoupled from backend internals.
+As the system evolves, richer aggregation logic and additional endpoints should **continue to respect these boundaries**: client-facing, mostly read-only, stateless, and decoupled from backend internals.
+
+---
+
+# Client Integration Guide
+
+This section describes how a client can **read live incident data** and how a **base node** can **submit new incidents**.
+
+## Base URL
+
+All endpoints are mounted under:
+
+```
+http://<host>:<port>/api
+```
+
+## Read (Client / Dashboard)
+
+### 1) List incidents (paginated)
+
+```
+GET /api/incidents?page=1&limit=10
+```
+
+Response shape:
+
+```json
+{
+  "data": [/* incident documents */],
+  "page": 1,
+  "limit": 10,
+  "total": 123,
+  "totalPages": 13
+}
+```
+
+**Live stream (polling at $1.5\,\text{s}$):**
+
+Because the API is HTTP-based, the simplest way to achieve a “live” view is **polling**. For near‑real‑time dashboards, poll every $1.5\,\text{s}$ with a safe client strategy:
+
+1. Poll `GET /api/incidents?page=1&limit=20` every $1.5\,\text{s}$.
+2. Replace or merge the returned `data` into the UI (treat page 1 as the “hot window”).
+3. Keep a client-side `lastUpdated` timestamp and display it in the UI.
+4. On `429` or `503`, back off (exponential + jitter) before retrying.
+5. If you add delta support later, prefer `since=<lastUpdated>` to reduce payload.
+6. If you add caching later, use `ETag`/`If-None-Match` or `Last-Modified` to get `304 Not Modified` on unchanged data.
+
+### 2) Get incident by ID
+
+```
+GET /api/incidents/:id
+```
+
+Returns the incident document or `404` if not found.
+
+## Write (Base Node)
+
+### 3) Create incident
+
+```
+POST /api/incidents
+```
+
+#### Request body (expected shape)
+
+```json
+{
+  "incidentId": "INC-OPTIONAL-001",
+  "type": "fire",
+  "severity": 7,
+  "status": "open",
+  "source": {
+    "originNodeId": "edge-001",
+    "detectionMethod": "sensor",
+    "detectedAt": "2026-01-18T12:00:00.000Z"
+  },
+  "location": {
+    "coordinates": [10.1234, 36.789],
+    "regionCode": "REG-TEST",
+    "description": "Warehouse district"
+  },
+  "traversalPath": [
+    { "hopIndex": 0, "nodeId": "edge-001" },
+    { "hopIndex": 1, "nodeId": "relay-007" }
+  ],
+  "baseReceipt": {
+    "baseNodeId": "base-001",
+    "receivedAt": "2026-01-18T12:01:00.000Z",
+    "processingStatus": "queued"
+  },
+  "payload": {
+    "summary": "Fire detected near industrial zone",
+    "raw": { "temperature": 650, "smokeDensity": 0.92 },
+    "attachments": ["s3://bucket/incident/001.jpg"]
+  }
+}
+```
+
+Notes:
+
+- `incidentId` is optional; if not provided the server generates one.
+- `detectedAt` and `receivedAt` are optional; if missing, the server uses current time.
+- `traversalPath` is optional. If provided, `hopIndex` is auto-filled when missing.
+
+#### Response
+
+`201 Created` with the full incident document as JSON.

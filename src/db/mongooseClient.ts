@@ -5,7 +5,7 @@ dotenv.config();
 
 let cachedConnection: Connection | null = null;
 
-const MONGODB_URL = process.env.MONGODB_URI;
+const MONGODB_URL = process.env.MONGODB_URL || process.env.MONGODB_URI;
 
 export async function connectMongoose(): Promise<Connection> {
   if (cachedConnection) {
@@ -13,7 +13,7 @@ export async function connectMongoose(): Promise<Connection> {
   }
 
   if (!MONGODB_URL) {
-    throw new Error("MONGODB_URL is not set in the environment (.env)");
+    throw new Error("MONGODB_URL (or MONGODB_URI) is not set in the environment (.env)");
   }
 
   await mongoose.connect(MONGODB_URL);
